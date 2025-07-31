@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Nixie Tube Clock with UV & Unique Haiku</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box }
+    body {
+      background: linear-gradient(135deg,#1a1a2e,#16213e);
+      color:#fff; font-family:'Orbitron',monospace;
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+    }
+    .clock-container {
+      background: linear-gradient(145deg,#2d2d44,#1a1a2e);
+      border-radius:20px; padding:2vw;
+      box-shadow:0 20px 40px rgba(0,0,0,0.5);
+      width:95vw; max-width:1200px;
+    }
+    #timeDisplay {
+      display:flex; justify-content:center; align-items:center; gap:1rem;
+      cursor:pointer;
+    }
+    .nixie-tube {
+      background:#111; border:3px solid #444; border-radius:15px;
+      width:min(12vw,120px); height:min(18vw,180px);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .nixie-digit {
+      font-size:min(7vw,72px); font-weight:900; color:#ff6600;
+      text-shadow:0 0 6px #ff6600,0 0 12px #ff3300;
+    }
+    .separator {
+      font-size:min(5vw,48px); color:#ff6600;
+      text-shadow:0 0 6px #ff6600; animation:blink 2s infinite;
+    }
+    @keyframes blink{0%,50%{opacity:1;}51%,100%{opacity:0.3}}
+    #dateDisplay {
+      text-align:center; margin-top:20px;
+      font-size:min(2.5vw,24px); color:#ccc;
+    }
+    .controls {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-top:20px; background:rgba(0,0,0,0.2);
+      border-radius:15px; padding:20px; border:1px solid #444;
+    }
+    /* Weather + City */
+    .weather-info {
+      position:relative; display:flex; align-items:center; gap:15px;
+      cursor:pointer;
+    }
+    .weather-icon { font-size:40px }
+    .weather-temp {
+      font-size:36px; font-weight:700; color:#ff6600; cursor:pointer;
+    }
+    .weather-details { font-size:18px; color:#aaa }
+    .dropdown.city {
+      position:absolute; top:100%; left:0; margin-top:8px;
+      background:#222; border:1px solid #444; border-radius:10px;
+      box-shadow:0 5px 15px rgba(0,0,0,0.5);
+      width:200px; max-width:90vw; max-height:144px; overflow-y:auto;
+      padding:10px; display:none; z-index:1000;
+    }
+    .dropdown.city input {
+      width:100%; padding:8px; margin-bottom:8px;
+      border:1px solid #555; border-radius:6px;
+      background:#111; color:#fff; font-family:'Orbitron',monospace;
+    }
+    .dropdown.city .option {
+      color:#ccc; padding:8px; cursor:pointer; transition:background 0.2s;
+    }
+    .dropdown.city .option:hover {
+      background:rgba(255,102,0,0.2); color:#ff6600;
+    }
+    /* Haiku */
+    .haiku-container {
+      flex:1; display:flex; flex-direction:column;
+      justify-content:center; align-items:center;
+      color:#ff6600; text-align:center; font-family:'Orbitron',monospace;
+      font-size:clamp(12px,2vw,16px); letter-spacing:1px;
+      text-shadow:0 0 3px #ff6600; padding:0 10px;
+    }
+    .haiku-line { margin:2px 0; white-space:nowrap; }
+    /* TZ selector */
+    .tz-wrapper { position:relative }
+    .tz-button {
+      background:none; border:1px solid #444; color:#ff6600;
+      font-family:'Orbitron',monospace; padding:5px 10px;
+      border-radius:8px; cursor:pointer;
+    }
+    .tz-button:hover { background:rgba(255,102,0,0.1) }
+    .dropdown.tz {
+      position:absolute; top:100%; right:0; margin-top:8px;
+      background:#222; border:1px solid #444; border-radius:10px;
+      box-shadow:0 5px 15px rgba(0,0,0,0.5);
+      width:200px; max-width:90vw; max-height:144px; overflow-y:auto;
+      display:none; z-index:1000;
+    }
+    .dropdown.tz .option {
+      color:#ccc; padding:8px; cursor:pointer; transition:background 0.2s;
+    }
+    .dropdown.tz .option:hover,
+    .dropdown.tz .option.selected {
+      background:rgba(255,102,0,0.2); color:#ff6600;
+    }
+  </style>
+</head>
+<body>
+  <div class="clock-container">
+    <div id="timeDisplay">
+      <div class="nixie-tube" id="hour1"><span class="nixie-digit">0</span></div>
+      <div class="nixie-tube" id="hour2"><span class="nixie-digit">0</span></div>
+      <div class="separator">:</div>
+      <div class="nixie-tube" id="min1"><span class="nixie-digit">0</span></div>
+      <div class="nixie-tube" id="min2"><span class="nixie-digit">0</span></div>
+      <div class="separator">:</div>
+      <div class="nixie-tube" id="sec1"><span class="nixie-digit">0</span></div>
+      <div class="nixie-tube" id="sec2"><span class="nixie-digit">0</span></div>
+    </div>
+    <div id="dateDisplay">Loading...</div>
+    <div class="controls">
+      <div class="weather-info" id="weatherInfo">
+        <div class="weather-icon" id="weatherIcon">🌤️</div>
+        <div>
+          <div class="weather-temp" id="weatherTemp">--°C</div>
+          <div class="weather-details" id="weatherDesc">Loading...</div>
+        </div>
+        <div class="dropdown city" id="cityDropdown">
+          <input type="text" id="citySearch" placeholder="Search city…" autocomplete="off"/>
+          <div id="cityResults"></div>
+        </div>
+      </div>
+      <div class="haiku-container">
+        <div class="haiku-line" id="haiku1"></div>
+        <div class="haiku-line" id="haiku2"></div>
+        <div class="haiku-line" id="haiku3"></div>
+      </div>
+      <div class="tz-wrapper">
+        <button class="tz-button" id="tzButton">GMT+0 (London)</button>
+        <div class="dropdown tz" id="tzDropdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 12/24-h toggle
+    let is24 = true;
+    document.getElementById('timeDisplay').addEventListener('click', ()=>{
+      is24 = !is24; updateTime();
+    });
+
+    // Unique haiku pools
+    const five = [
+      "silent autumn breeze","morning dew on grass","petals drift away",
+      "whispers through the pines","crimson leaves flutter","moonlight on the lake",
+      "soft rain on rooftops","shadows kiss the earth","dawn breaks the stillness",
+      "stars fade into day","frost upon the window","rustling in the reeds",
+      "sunlight warms the stone","wind sighs in the canyon","clouds float overhead",
+      "snow settles softly","cicadas hum at dusk","echoes in the valley",
+      "fireflies light paths","mist hugs the mountain"
+    ];
+    const seven = [
+      "golden sun paints the horizon","a lonely bird calls at midnight",
+      "ancient trees embrace the quiet","ripples spread across the water",
+      "shimmer of dawn lights the valley","snowflakes dance in winter’s hush",
+      "twilight hums with distant memories","shadows wander beneath the moon",
+      "echoes linger in empty halls","ocean breeze heals all sorrow",
+      "footsteps fade on empty streets","petal rain drifts on soft wind",
+      "mirrors of clouds on the lake","scent of jasmine fills the air",
+      "embers glow in the night sky","bamboo groves whisper secrets",
+      "river stones cool underfoot","lanterns sway on summer nights",
+      "haunting song of the cicada","morning light through ancient oaks"
+    ];
+    function generateHaiku() {
+      // pick first line
+      const i1 = Math.floor(Math.random()*five.length), l1 = five[i1];
+      // second
+      const l2 = seven[Math.floor(Math.random()*seven.length)];
+      // third, ensure != l1
+      let i3 = Math.floor(Math.random()*(five.length-1));
+      if (i3 >= i1) i3++;
+      const l3 = five[i3];
+      return [l1,l2,l3];
+    }
+    function showHaiku() {
+      const [a,b,c] = generateHaiku();
+      document.getElementById('haiku1').textContent = a;
+      document.getElementById('haiku2').textContent = b;
+      document.getElementById('haiku3').textContent = c;
+    }
+    showHaiku(); setInterval(showHaiku,60000);
+
+    // Timezone selector
+    const timezones = [
+      {offset:-12,label:'GMT-12 (Baker Island)'},{offset:-11,label:'GMT-11 (Samoa)'},
+      {offset:-10,label:'GMT-10 (Hawaii)'},{offset:-9,label:'GMT-9 (Alaska)'},
+      {offset:-8,label:'GMT-8 (Los Angeles)'},{offset:-7,label:'GMT-7 (Denver)'},
+      {offset:-6,label:'GMT-6 (Chicago)'},{offset:-5,label:'GMT-5 (New York)'},
+      {offset:-4,label:'GMT-4 (Atlantic)'},{offset:-3,label:'GMT-3 (São Paulo)'},
+      {offset:-2,label:'GMT-2 (Mid-Atlantic)'},{offset:-1,label:'GMT-1 (Azores)'},
+      {offset:0 ,label:'GMT+0 (London)'},{offset:1 ,label:'GMT+1 (Berlin)'},
+      {offset:2 ,label:'GMT+2 (Cairo)'},{offset:3 ,label:'GMT+3 (Moscow)'},
+      {offset:4 ,label:'GMT+4 (Dubai)'},{offset:5 ,label:'GMT+5 (Karachi)'},
+      {offset:5.5,label:'GMT+5:30 (Mumbai)'},{offset:6 ,label:'GMT+6 (Dhaka)'},
+      {offset:7 ,label:'GMT+7 (Bangkok)'},{offset:8 ,label:'GMT+8 (Beijing)'},
+      {offset:9 ,label:'GMT+9 (Tokyo)'},{offset:9.5,label:'GMT+9:30 (Adelaide)'},
+      {offset:10,label:'GMT+10 (Sydney)'},{offset:11,label:'GMT+11 (Noumea)'},
+      {offset:12,label:'GMT+12 (Auckland)'}
+    ];
+    let selectedTZ = 0;
+    const tzBtn = document.getElementById('tzButton'),
+          tzDD  = document.getElementById('tzDropdown');
+    timezones.forEach(tz=>{
+      const o=document.createElement('div');
+      o.className='option'; o.textContent=tz.label; o.dataset.offset=tz.offset;
+      if(tz.offset===0) o.classList.add('selected');
+      o.addEventListener('click',()=>{
+        selectedTZ=+o.dataset.offset;
+        tzBtn.textContent=tz.label;
+        tzDD.querySelectorAll('.option').forEach(x=>x.classList.remove('selected'));
+        o.classList.add('selected');
+        tzDD.style.display='none';
+        updateTime();
+      });
+      tzDD.appendChild(o);
+    });
+    tzBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      tzDD.style.display=tzDD.style.display==='block'?'none':'block';
+    });
+    document.addEventListener('click',()=>tzDD.style.display='none');
+
+    // City search & UV
+    let lat=40.7128, lon=-74.0060, tempC=null, isC=true;
+    const cityInfo=document.getElementById('weatherInfo'),
+          cityDD=document.getElementById('cityDropdown'),
+          cityIn=document.getElementById('citySearch'),
+          cityRes=document.getElementById('cityResults');
+    cityInfo.addEventListener('click',e=>{
+      e.stopPropagation();
+      cityDD.style.display=cityDD.style.display==='block'?'none':'block';
+      cityIn.focus();
+    });
+    document.addEventListener('click',()=>cityDD.style.display='none');
+    let timeout;
+    cityIn.addEventListener('input',()=>{
+      clearTimeout(timeout);
+      const q=cityIn.value.trim();
+      if(!q) return cityRes.innerHTML='';
+      timeout=setTimeout(async()=>{
+        try {
+          const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5`);
+          const j=await r.json();
+          cityRes.innerHTML='';
+          (j.results||[]).forEach(loc=>{
+            const o=document.createElement('div');
+            o.className='option';
+            o.textContent=`${loc.name}${loc.admin1?`, ${loc.admin1}`:''}, ${loc.country}`;
+            o.dataset.lat=loc.latitude; o.dataset.lon=loc.longitude;
+            o.addEventListener('click',()=>{
+              lat=+o.dataset.lat; lon=+o.dataset.lon;
+              cityDD.style.display='none'; cityIn.value=''; cityRes.innerHTML='';
+              fetchWeather();
+            });
+            cityRes.appendChild(o);
+          });
+          if(!j.results) cityRes.innerHTML='<div class="option">No results</div>';
+        } catch {
+          cityRes.innerHTML='<div class="option">Error</div>';
+        }
+      },300);
+    });
+
+    function weatherEmoji(code){
+      if([0].includes(code)) return '☀️';
+      if([1,2,3].includes(code)) return '⛅';
+      if([45,48].includes(code)) return '🌫️';
+      if([51,53,55,61,63,65,80,81,82].includes(code)) return '🌧️';
+      if([71,73,75,77,85,86].includes(code)) return '❄️';
+      if([95,96,99].includes(code)) return '⛈️';
+      return '❓';
+    }
+
+    async function fetchWeather(){
+      const iconEl=document.getElementById('weatherIcon'),
+            descEl=document.getElementById('weatherDesc'),
+            tempEl=document.getElementById('weatherTemp');
+      descEl.textContent='Loading…'; iconEl.textContent='🌤️';
+      try {
+        const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`+
+                  `&current_weather=true&hourly=uv_index&timezone=auto`;
+        const res=await fetch(url);
+        if(!res.ok) throw '';
+        const d=await res.json(), cw=d.current_weather;
+        tempC=cw.temperature;
+        const idx=d.hourly.time.indexOf(cw.time);
+        const uv=(idx>=0 && d.hourly.uv_index[idx]!=null) ? d.hourly.uv_index[idx] : 0;
+        iconEl.textContent=weatherEmoji(cw.weathercode);
+        descEl.textContent=`UV Index: ${uv}`;
+        updateTemp();
+      } catch {
+        descEl.textContent='Weather unavailable'; iconEl.textContent='❓'; tempEl.textContent='--';
+      }
+    }
+    function updateTemp(){
+      if(tempC==null) return;
+      const v=isC?`${Math.round(tempC)}°C`:`${Math.round(tempC*9/5+32)}°F`;
+      document.getElementById('weatherTemp').textContent=v;
+    }
+    document.getElementById('weatherTemp').addEventListener('click',()=>{isC=!isC; updateTemp()});
+
+    // Clock & Date
+    let lastCombo='';
+    function updateTime(){
+      const now=new Date(),
+            utc=now.getTime()+now.getTimezoneOffset()*60000,
+            tgt=new Date(utc+selectedTZ*3600000),
+            rawH=tgt.getHours(),
+            h24 = String(rawH).padStart(2,'0'),
+            h12 = String((rawH%12)||12).padStart(2,'0'),
+            h = is24 ? h24 : h12,
+            m = String(tgt.getMinutes()).padStart(2,'0'),
+            s = String(tgt.getSeconds()).padStart(2,'0'),
+            combo = h+m+s;
+      if(combo!==lastCombo){
+        ['hour1','hour2','min1','min2','sec1','sec2'].forEach((id,i)=>
+          document.querySelector(`#${id} .nixie-digit`).textContent=combo[i]
+        );
+        lastCombo = combo;
+      }
+      document.getElementById('dateDisplay').textContent=
+        tgt.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    }
+    setInterval(updateTime,1000);
+    updateTime();
+    fetchWeather();
+    setInterval(fetchWeather,600000);
+  </script>
+</body>
+</html>
